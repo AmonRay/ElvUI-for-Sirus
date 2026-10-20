@@ -2,7 +2,7 @@
 TreeGroup Container
 Container that uses a tree control to switch between groups.
 -------------------------------------------------------------------------------]]
-local Type, Version = "TreeGroup", 47
+local Type, Version = "TreeGroup", 48
 local AceGUI = LibStub and LibStub("AceGUI-3.0", true)
 if not AceGUI or (AceGUI:GetWidgetVersion(Type) or 0) >= Version then return end
 
@@ -296,6 +296,7 @@ local methods = {
 	["OnRelease"] = function(self)
 		self.status = nil
 		self.tree = nil
+		self.autoHeightLineCount = nil
 		self.frame:SetScript("OnUpdate", nil)
 		for k, v in pairs(self.localstatus) do
 			if k == "groups" then
@@ -414,6 +415,18 @@ local methods = {
 		self:BuildLevel(tree, 1)
 
 		local numlines = #lines
+
+		-- Natural-height trees must fit their navigation as well as their content.
+		-- Expanded/collapsed branches also change the owning page's natural height.
+		if not self.noAutoHeight and self.height ~= "fill" and treeframe:IsShown() and self.autoHeightLineCount ~= numlines then
+			self.autoHeightLineCount = numlines
+			self:DoLayout()
+			local parent = self.parent
+			while parent do
+				parent:DoLayout()
+				parent = parent.parent
+			end
+		end
 
 		local maxlines = (floor(((self.treeframe:GetHeight()or 0) - 20 ) / 18))
 		if maxlines <= 0 then return end
@@ -614,7 +627,12 @@ local methods = {
 
 	["LayoutFinished"] = function(self, width, height)
 		if self.noAutoHeight then return end
-		self:SetHeight((height or 0) + 20)
+		local treeheight = 0
+		if self.height ~= "fill" and self.treeframe:IsShown() and #self.lines > 0 then
+			-- Match RefreshTree's 18px rows + 20px insets; allow 1px for rounding.
+			treeheight = #self.lines * 18 + 21
+		end
+		self:SetHeight(math_max((height or 0) + 20, treeheight))
 	end
 }
 

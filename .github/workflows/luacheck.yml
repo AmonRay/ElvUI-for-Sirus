@@ -18,7 +18,9 @@ jobs:
           luaVersion: "5.1"
 
       - name: Test settings page scrolling
-        run: lua tests/settings_page_scroll.lua
+        run: |
+          lua tests/settings_page_scroll.lua
+          lua tests/treegroup_autoheight.lua
 
       - name: Set up LuaRocks
         uses: leafo/gh-actions-luarocks@v4
