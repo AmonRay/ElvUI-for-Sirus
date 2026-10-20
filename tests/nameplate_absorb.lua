@@ -34,6 +34,7 @@ for _, unit in pairs(defaults.P.nameplates.units) do
 		assert(db.absorb.enable == true and db.absorb.showText == false)
 		assert(db.absorb.font == db.text.font and db.absorb.fontSize == db.text.fontSize)
 		assert(db.absorb.fontOutline == db.text.fontOutline)
+		assert(db.absorb.position == "LEFT" and db.absorb.xOffset == 4 and db.absorb.yOffset == 0)
 	end
 end
 assert(count == 4)
@@ -49,7 +50,7 @@ local function widget()
 		SetTexture = function() end,
 		SetVertexColor = function() end,
 		ClearAllPoints = function() end,
-		SetPoint = function() end
+		SetPoint = function(self, ...) self.point = { ... } end
 	}
 end
 
@@ -74,6 +75,17 @@ np:Configure_Absorb(frame)
 np:Update_Absorb(frame)
 assert(bar.Absorb.shown and not bar.AbsorbText.shown)
 assert(bar.Absorb.width == 44)
+assert(bar.AbsorbText.point[1] == "LEFT" and bar.AbsorbText.point[4] == 4 and bar.AbsorbText.point[5] == 0)
+for _, position in ipairs({ "TOPLEFT", "TOP", "TOPRIGHT", "LEFT", "CENTER", "RIGHT", "BOTTOMLEFT", "BOTTOM", "BOTTOMRIGHT" }) do
+	health.absorb.position, health.absorb.xOffset, health.absorb.yOffset = position, -20, 15
+	np:Configure_Absorb(frame)
+	local point = bar.AbsorbText.point
+	assert(point[1] == position and point[2] == bar and point[3] == position)
+	assert(point[4] == -20 and point[5] == 15)
+end
+health.absorb.xOffset, health.absorb.yOffset = 0, 0
+np:Configure_Absorb(frame)
+assert(bar.AbsorbText.point[4] == 0 and bar.AbsorbText.point[5] == 0)
 
 health.absorb.showText = true
 health.absorb.font, health.absorb.fontSize, health.absorb.fontOutline = "Expressway", 18, "MONOCHROMEOUTLINE"
@@ -101,6 +113,7 @@ assert(not bar.Absorb and not bar.AbsorbText)
 health.absorb = { enable = true, showText = true }
 np:Configure_Absorb(frame)
 assert(bar.AbsorbText.font[1] == health.text.font and bar.AbsorbText.font[2] == health.text.fontSize)
+assert(bar.AbsorbText.point[1] == "LEFT" and bar.AbsorbText.point[4] == 4 and bar.AbsorbText.point[5] == 0)
 np:Update_Absorb(frame)
 assert(bar.AbsorbText.shown)
 shield = 0
@@ -136,5 +149,13 @@ for key, value in pairs({ font = "Expressway", fontSize = 20, fontOutline = "" }
 	options.set({ "fontGroup", key }, value)
 	assert(options.get({ "fontGroup", key }) == value)
 end
-assert(updates == 5)
-print("PASS: absorption defaults, visibility, independent fonts, legacy profiles and option callbacks")
+for key, value in pairs({ position = "BOTTOMRIGHT", xOffset = -30, yOffset = 12 }) do
+	assert(options.args.positionGroup.args[key])
+	options.set({ "positionGroup", key }, value)
+	assert(options.get({ "positionGroup", key }) == value)
+end
+assert(not options.args.positionGroup.disabled())
+health.absorb.showText = false
+assert(options.args.positionGroup.disabled())
+assert(updates == 8)
+print("PASS: absorption defaults, visibility, independent fonts and positions, legacy profiles and option callbacks")

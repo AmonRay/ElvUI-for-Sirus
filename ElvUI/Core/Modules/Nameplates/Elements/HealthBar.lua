@@ -256,7 +256,8 @@ function NP:Configure_Absorb(frame)
 	end
 	text:FontTemplate(LSM:Fetch("font", absorbDB.font or db.text.font), absorbDB.fontSize or db.text.fontSize, absorbDB.fontOutline or db.text.fontOutline)
 	text:ClearAllPoints()
-	text:SetPoint("LEFT", healthBar, "LEFT", 4, 0)
+	local position = absorbDB.position or "LEFT"
+	text:SetPoint(position, healthBar, position, absorbDB.xOffset or 4, absorbDB.yOffset or 0)
 	overlay:ClearAllPoints()
 	overlay:SetPoint("TOPRIGHT", healthBar, "TOPRIGHT", 0, 0)
 	overlay:SetPoint("BOTTOMRIGHT", healthBar, "BOTTOMRIGHT", 0, 0)

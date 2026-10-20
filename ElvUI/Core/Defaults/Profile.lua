@@ -1160,6 +1160,7 @@ for _, unitContent in pairs(P.nameplates.units) do
 	if unitContent.health then
 		unitContent.health.absorb = {
 			enable = true, showText = false,
+			position = "LEFT", xOffset = 4, yOffset = 0,
 			font = unitContent.health.text.font,
 			fontSize = unitContent.health.text.fontSize,
 			fontOutline = unitContent.health.text.fontOutline
