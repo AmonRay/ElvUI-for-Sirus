@@ -34,7 +34,7 @@ for _, unit in pairs(defaults.P.nameplates.units) do
 		assert(db.absorb.enable == true and db.absorb.showText == false)
 		assert(db.absorb.font == db.text.font and db.absorb.fontSize == db.text.fontSize)
 		assert(db.absorb.fontOutline == db.text.fontOutline)
-		assert(db.absorb.position == "LEFT" and db.absorb.xOffset == 4 and db.absorb.yOffset == 0)
+		assert(db.absorb.position == "RIGHT" and db.absorb.xOffset == -4 and db.absorb.yOffset == 0)
 	end
 end
 assert(count == 4)
@@ -54,10 +54,10 @@ local function widget()
 	}
 end
 
-local shield, maximum, apiCalls = 22000, 100000, 0
+local shield, maximum, currentHealth, apiCalls = 22000, 100000, 50000, 0
 local health = copy(defaults.P.nameplates.units.ENEMY_PLAYER.health)
 local np = { db = { units = { ENEMY_PLAYER = { health = health } } } }
-function np:GetHealth() return 50000, maximum end
+function np:GetHealth() return currentHealth, maximum end
 local env = {
 	NP = np,
 	E = { media = { blankTex = "blank" }, ShortValue = function(_, amount) return tostring(amount) end },
@@ -75,7 +75,32 @@ np:Configure_Absorb(frame)
 np:Update_Absorb(frame)
 assert(bar.Absorb.shown and not bar.AbsorbText.shown)
 assert(bar.Absorb.width == 44)
-assert(bar.AbsorbText.point[1] == "LEFT" and bar.AbsorbText.point[4] == 4 and bar.AbsorbText.point[5] == 0)
+assert(bar.Absorb.lastOffset == 100)
+for _, case in ipairs({
+	{ 50000, 22000, 100, 44 },
+	{ 90000, 25000, 150, 50 },
+	{ 100000, 25000, 150, 50 },
+	{ 50000, 100000, 0, 200 },
+	{ 50000, 150000, 0, 200 },
+	{ 0, 25000, 0, 50 },
+	{ -1000, 25000, 0, 50 },
+	{ 120000, 25000, 150, 50 }
+}) do
+	currentHealth, shield = case[1], case[2]
+	np:Update_Absorb(frame)
+	assert(bar.Absorb.lastOffset == case[3] and bar.Absorb.width == case[4])
+	local point = bar.Absorb.point
+	assert(point[1] == "BOTTOMLEFT" and point[2] == bar and point[3] == "BOTTOMLEFT" and point[4] == case[3])
+	assert(bar.Absorb.lastOffset >= 0 and bar.Absorb.lastOffset + bar.Absorb.width <= bar.width)
+end
+currentHealth, shield = 50000, 22000
+np:Update_Absorb(frame)
+bar.width = 400
+np:Update_Absorb(frame)
+assert(bar.Absorb.lastOffset == 200 and bar.Absorb.width == 88)
+bar.width = 200
+np:Update_Absorb(frame)
+assert(bar.AbsorbText.point[1] == "RIGHT" and bar.AbsorbText.point[4] == -4 and bar.AbsorbText.point[5] == 0)
 for _, position in ipairs({ "TOPLEFT", "TOP", "TOPRIGHT", "LEFT", "CENTER", "RIGHT", "BOTTOMLEFT", "BOTTOM", "BOTTOMRIGHT" }) do
 	health.absorb.position, health.absorb.xOffset, health.absorb.yOffset = position, -20, 15
 	np:Configure_Absorb(frame)
@@ -113,9 +138,15 @@ assert(not bar.Absorb and not bar.AbsorbText)
 health.absorb = { enable = true, showText = true }
 np:Configure_Absorb(frame)
 assert(bar.AbsorbText.font[1] == health.text.font and bar.AbsorbText.font[2] == health.text.fontSize)
-assert(bar.AbsorbText.point[1] == "LEFT" and bar.AbsorbText.point[4] == 4 and bar.AbsorbText.point[5] == 0)
+assert(bar.AbsorbText.point[1] == "RIGHT" and bar.AbsorbText.point[4] == -4 and bar.AbsorbText.point[5] == 0)
 np:Update_Absorb(frame)
 assert(bar.AbsorbText.shown)
+shield = 150000
+np:Update_Absorb(frame)
+assert(bar.Absorb.width == bar.width and bar.AbsorbText.value == "+150000")
+health.absorb.position, health.absorb.xOffset, health.absorb.yOffset = "LEFT", 4, 10
+np:Configure_Absorb(frame)
+assert(bar.AbsorbText.point[1] == "LEFT" and bar.AbsorbText.point[4] == 4 and bar.AbsorbText.point[5] == 10)
 shield = 0
 np:Update_Absorb(frame)
 assert(not bar.Absorb.shown and not bar.AbsorbText.shown)
@@ -195,4 +226,4 @@ assert(not options.args.positionGroup.disabled())
 health.absorb.showText = false
 assert(options.args.positionGroup.disabled())
 assert(updates == 8)
-print("PASS: absorption defaults, visibility, independent fonts and positions, preview absorption, legacy profiles and option callbacks")
+print("PASS: absorption defaults, visibility, independent fonts and positions, preview absorption, shield geometry and overflow, legacy profiles and option callbacks")
