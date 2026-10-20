@@ -17,8 +17,8 @@ jobs:
         with:
           luaVersion: "5.1"
 
-      - name: Test config content scrolling
-        run: lua tests/config_content_scroll.lua
+      - name: Test settings page scrolling
+        run: lua tests/settings_page_scroll.lua
 
       - name: Set up LuaRocks
         uses: leafo/gh-actions-luarocks@v4

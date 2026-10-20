@@ -7,7 +7,7 @@ local LibStub = LibStub
 local gui = LibStub("AceGUI-3.0")
 local reg = LibStub("AceConfigRegistry-3.0-ElvUI")
 
-local MAJOR, MINOR = "AceConfigDialog-3.0-ElvUI", 89
+local MAJOR, MINOR = "AceConfigDialog-3.0-ElvUI", 90
 local AceConfigDialog, oldminor = LibStub:NewLibrary(MAJOR, MINOR)
 
 if not AceConfigDialog then return end
@@ -1662,9 +1662,14 @@ function AceConfigDialog:FeedGroup(appName,options,container,rootframe,path, isR
 
 	container:SetLayout("flow")
 	local scroll
+	local pageScroll = container:GetUserData("ElvUIPageScroll")
+	local usePageScroll = appName == "ElvUI" and not isRoot and not inline
 
-	--Add a scrollframe if we are not going to add a group control, this is the inverse of the conditions for that later on
-	if (not (hasChildGroups and not inline)) or (grouptype ~= "tab" and grouptype ~= "select" and (parenttype == "tree" and not isRoot)) then
+	-- Keep one scrollable viewport around the entire ElvUI settings page.
+	-- Headers and inline options can otherwise consume more than the available
+	-- height, leaving a fill-height nested group with a negative viewport.
+	-- Nested group controls grow to their content instead of adding more scrollers.
+	if not pageScroll and (usePageScroll or (not (hasChildGroups and not inline)) or (grouptype ~= "tab" and grouptype ~= "select" and (parenttype == "tree" and not isRoot))) then
 		if container.type ~= "InlineGroup" and container.type ~= "SimpleGroup" then
 			scroll = gui:Create("ScrollFrame")
 			scroll:SetLayout("flow")
@@ -1673,6 +1678,9 @@ function AceConfigDialog:FeedGroup(appName,options,container,rootframe,path, isR
 			container:SetLayout("fill")
 			container:AddChild(scroll)
 			container = scroll
+			if usePageScroll then
+				pageScroll = scroll
+			end
 		end
 	end
 
@@ -1692,6 +1700,7 @@ function AceConfigDialog:FeedGroup(appName,options,container,rootframe,path, isR
 		if grouptype == "tab" then
 
 			local tab = gui:Create("TabGroup")
+			tab:SetUserData("ElvUIPageScroll", pageScroll)
 			InjectInfo(tab, options, group, path, rootframe, appName)
 			tab:SetCallback("OnGroupSelected", GroupSelected)
 			tab:SetCallback("OnTabEnter", TreeOnButtonEnter)
@@ -1703,7 +1712,7 @@ function AceConfigDialog:FeedGroup(appName,options,container,rootframe,path, isR
 			end
 			tab:SetStatusTable(status.groups)
 			tab.width = "fill"
-			tab.height = "fill"
+			tab.height = not pageScroll and "fill" or nil
 
 			local tabs = BuildGroups(group, options, path, appName)
 			tab:SetTabs(tabs)
@@ -1722,6 +1731,7 @@ function AceConfigDialog:FeedGroup(appName,options,container,rootframe,path, isR
 		elseif grouptype == "select" then
 
 			local selectGroup = gui:Create("DropdownGroup")
+			selectGroup:SetUserData("ElvUIPageScroll", pageScroll)
 			selectGroup:SetTitle(name)
 			InjectInfo(selectGroup, options, group, path, rootframe, appName)
 			selectGroup:SetCallback("OnGroupSelected", GroupSelected)
@@ -1741,7 +1751,7 @@ function AceConfigDialog:FeedGroup(appName,options,container,rootframe,path, isR
 			end
 
 			selectGroup.width = "fill"
-			selectGroup.height = "fill"
+			selectGroup.height = not pageScroll and "fill" or nil
 
 			container:AddChild(selectGroup)
 
@@ -1749,11 +1759,12 @@ function AceConfigDialog:FeedGroup(appName,options,container,rootframe,path, isR
 		--if parenttype is tree then this group is already a node on that tree
 		elseif (parenttype ~= "tree") or isRoot then
 			local tree = gui:Create("TreeGroup")
+			tree:SetUserData("ElvUIPageScroll", pageScroll)
 			InjectInfo(tree, options, group, path, rootframe, appName)
 			tree:EnableButtonTooltips(false)
 
 			tree.width = "fill"
-			tree.height = "fill"
+			tree.height = not pageScroll and "fill" or nil
 
 			tree:SetCallback("OnGroupSelected", GroupSelected)
 			tree:SetCallback("OnButtonEnter", TreeOnButtonEnter)
@@ -1779,6 +1790,12 @@ function AceConfigDialog:FeedGroup(appName,options,container,rootframe,path, isR
 
 			container:AddChild(tree)
 		end
+	end
+
+	-- Switching a nested tab/tree/dropdown changes the natural page height.
+	-- Reflow its owning viewport even when the window itself did not resize.
+	if pageScroll then
+		pageScroll:DoLayout()
 	end
 end
 

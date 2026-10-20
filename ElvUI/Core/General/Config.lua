@@ -1076,11 +1076,6 @@ function E:Config_WindowClosed()
 		E:StopElasticize(self.leftHolder.LogoBottom)
 
 		E:Config_RestoreOldPosition(self.topHolder.version)
-		if self.clipScroll then
-			self.clipScroll:Hide()
-			self.clipScroll.scrollbar:Hide()
-			self.obj.content:SetParent(self) -- AceGUI may reuse this Frame for another app
-		end
 		E:Config_RestoreOldPosition(self.obj.content)
 		E:Config_RestoreOldPosition(self.obj.titlebg)
 
@@ -1103,173 +1098,10 @@ function E:Config_WindowClosed()
 	end
 end
 
--- The outer viewport belongs to ElvUI, not AceGUI. Its scroll child must be
--- allowed to grow past the window without changing the options-table hierarchy.
-local function Config_FindContentScroll(region)
-	while region do
-		local clip = region.configContentScroll or region.clipScroll
-		if clip then return clip end
-		region = region:GetParent()
-	end
-end
-
-local function Config_ContentChanged(region)
-	local clip = Config_FindContentScroll(region)
-	if clip and clip:IsShown() then clip.dirty = true end
-end
-
-local function Config_ContentMouseWheel(region, delta)
-	local clip = Config_FindContentScroll(region)
-	if not (clip and clip:IsShown()) then return end
-	-- An inner AceGUI scroller consumes the wheel even when it has no range.
-	-- Let a genuinely scrollable inner viewport keep its normal behaviour.
-	local widget = region.obj
-	if widget and widget.type == 'ScrollFrame' and widget.content:GetHeight() > region:GetHeight() + 2 then return end
-	local bar = clip.scrollbar
-	local _, limit = bar:GetMinMaxValues()
-	bar:SetValue(math.max(0, min(limit, bar:GetValue() - delta * 36)))
-end
-
-local function Config_WatchContent(region)
-	if not region or region.elvuiContentScrollWatched then return end
-	region.elvuiContentScrollWatched = true
-	region:HookScript('OnSizeChanged', Config_ContentChanged)
-	region:HookScript('OnShow', Config_ContentChanged)
-	region:HookScript('OnHide', Config_ContentChanged)
-end
-
-local function Config_ContentHeight(widget)
-	Config_WatchContent(widget.frame)
-	Config_WatchContent(widget.content)
-	if widget.type == 'ScrollFrame' then
-		if not widget.scrollframe.elvuiContentWheelHooked then
-			widget.scrollframe.elvuiContentWheelHooked = true
-			widget.scrollframe:HookScript('OnMouseWheel', Config_ContentMouseWheel)
-		end
-		-- Ignore the current viewport (which may be inverted) and scroll offset.
-		return math.max(0, widget.content:GetHeight())
-	end
-
-	local top = widget.frame:GetTop()
-	if not top then return 0 end
-	if not widget.children then return math.max(0, widget.frame:GetHeight()) end
-
-	local height = math.max(0, top - (widget.content:GetTop() or top))
-	for _, child in ipairs(widget.children) do
-		local childTop = child.frame:GetTop()
-		if child.frame:IsShown() and childTop then
-			height = math.max(height, top - childTop + Config_ContentHeight(child))
-		end
-	end
-	-- Preserve container insets, but do not count the fill-height frame itself:
-	-- doing so would keep the old tall page height when switching to a short one.
-	local bottom = widget.frame:GetBottom()
-	local contentBottom = widget.content:GetBottom()
-	return height + ((bottom and contentBottom) and math.max(0, contentBottom - bottom) or 0)
-end
-
 function E:Config_ContentPlacement(frame, content, unskinned, statusShown)
-	local clip = frame.clipScroll
-	local viewport = clip or content
-	viewport:ClearAllPoints()
-	viewport:Point('TOPLEFT', frame, 'TOPLEFT', unskinned and 13 or 7, -(frame.bottomHolder:GetHeight() + (unskinned and 46 or 27)))
-	viewport:Point('BOTTOMRIGHT', frame, 'BOTTOMRIGHT', -(unskinned and 18 or 2) - ((clip and clip.scrollBarShown) and 14 or 0), (statusShown and (unskinned and 32 or 25)) or (unskinned and 12) or 2)
-	if clip then
-		clip.unskinned, clip.statusShown = unskinned, statusShown
-		content:ClearAllPoints()
-		content:SetAllPoints(clip.child)
-		clip.dirty = true
-	end
-end
-
-local function Config_UpdateContentScroll(clip)
-	if not clip.dirty then return end
-	clip.dirty = nil
-	local frame = E:Config_GetWindow()
-	if not frame or frame.clipScroll ~= clip then return end
-
-	local width, viewHeight = clip:GetWidth(), clip:GetHeight()
-	if not width or not viewHeight or width <= 0 or viewHeight <= 0 then return end
-	local content = frame.obj.content
-	local contentTop = content:GetTop()
-	if not contentTop then return end
-
-	local height = viewHeight
-	for _, child in ipairs(frame.obj.children) do
-		local top = child.frame:GetTop()
-		if child.frame:IsShown() and top then
-			height = math.max(height, contentTop - top + Config_ContentHeight(child))
-		end
-	end
-	height = math.ceil(height)
-	local child = clip.child
-	local resized = math.abs(child:GetWidth() - width) > 0.5 or math.abs(child:GetHeight() - height) > 0.5
-	-- AceGUI Frame.OnHeightSet also writes content.height on window resize.
-	-- Restore the scroll-child dimensions even if the long page did not resize.
-	local relayout = resized or math.abs((content.width or 0) - width) > 0.5 or math.abs((content.height or 0) - height) > 0.5
-	if resized then child:SetSize(width, height) end
-	if relayout then
-		content:ClearAllPoints()
-		content:SetAllPoints(child)
-		content.width, content.height = width, height
-		frame.obj:DoLayout()
-		clip.dirty = true -- settle width-dependent labels and nested group insets
-	end
-
-	local limit = math.max(0, height - viewHeight)
-	if limit <= 1 then limit = 0 end -- ignore sub-pixel rounding at the lower edge
-	local shown = limit > 0
-	if shown ~= clip.scrollBarShown then
-		clip.scrollBarShown = shown
-		E:Config_ContentPlacement(frame, content, clip.unskinned, clip.statusShown)
-	end
-	local bar = clip.scrollbar
-	bar:SetShown(shown)
-	bar:SetMinMaxValues(0, limit)
-	local _, selected = E:Config_GetStatus(frame)
-	local value = clip.selected == selected and min(bar:GetValue(), limit) or 0
-	clip.selected = selected
-	bar:SetValue(value)
-	clip:SetVerticalScroll(value)
-end
-
-local function Config_CreateContentScroll(frame, unskinned)
-	local clip = CreateFrame('ScrollFrame', nil, frame)
-	clip.configContentScroll = clip
-	clip:EnableMouseWheel(true)
-	clip:SetScript('OnMouseWheel', Config_ContentMouseWheel)
-	clip:SetScript('OnUpdate', Config_UpdateContentScroll)
-	Config_WatchContent(clip)
-
-	local child = CreateFrame('Frame', nil, clip)
-	child:SetPoint('TOPLEFT')
-	child:SetSize(1, 1)
-	clip:SetScrollChild(child)
-	clip.child = child
-
-	local bar = CreateFrame('Slider', nil, frame)
-	bar.configContentScroll = clip
-	bar:SetPoint('TOPRIGHT', clip, 'TOPRIGHT', -3, -2)
-	bar:SetPoint('BOTTOMRIGHT', clip, 'BOTTOMRIGHT', -3, 2)
-	bar:SetWidth(8)
-	bar:SetOrientation('VERTICAL')
-	bar:SetMinMaxValues(0, 0)
-	bar:SetValueStep(1)
-	bar:SetValue(0)
-	bar:SetThumbTexture(E.media.blankTex)
-	local thumb = bar:GetThumbTexture()
-	thumb:SetSize(8, 24)
-	thumb:SetVertexColor(1, 0.82, 0)
-	bar:EnableMouseWheel(true)
-	bar:SetScript('OnMouseWheel', Config_ContentMouseWheel)
-	bar:SetScript('OnValueChanged', function(_, value) clip:SetVerticalScroll(value) end)
-	bar:Hide()
-	clip.scrollbar = bar
-	if not unskinned then S:HandleSirusScrollBar(bar) end
-
-	frame.clipScroll = clip
-	Config_WatchContent(frame)
-	return clip
+	content:ClearAllPoints()
+	content:Point('TOPLEFT', frame, 'TOPLEFT', unskinned and 13 or 7, -(frame.bottomHolder:GetHeight() + (unskinned and 46 or 27)))
+	content:Point('BOTTOMRIGHT', frame, 'BOTTOMRIGHT', -(unskinned and 18 or 2), (statusShown and (unskinned and 32 or 25)) or (unskinned and 12) or 2)
 end
 
 function E:Config_SetStatusText(text)
@@ -1307,10 +1139,26 @@ function E:Config_WindowOpened(frame)
 		E:Config_SaveOldPosition(content)
 		E:Config_ContentPlacement(frame, content, unskinned)
 
-		local clip = frame.clipScroll or Config_CreateContentScroll(frame, unskinned)
-		content:SetParent(clip.child)
-		clip:Show()
-		E:Config_ContentPlacement(frame, content, unskinned)
+		if not frame.clipScroll then
+			local clip = CreateFrame('ScrollFrame', nil, frame)
+			clip:SetAllPoints(content)
+
+			local child = CreateFrame('Frame', nil, clip)
+			child:Point('TOPLEFT')
+			clip:SetScrollChild(child)
+
+			local function syncClip()
+				local width, height = clip:GetWidth(), clip:GetHeight()
+				child:SetSize((width and width > 0 and width) or 1, (height and height > 0 and height) or 1)
+			end
+
+			frame:HookScript('OnSizeChanged', syncClip)
+			frame:HookScript('OnShow', syncClip)
+			syncClip()
+
+			content:SetParent(child)
+			frame.clipScroll = clip
+		end
 
 		local titlebg = frame.obj.titlebg
 		E:Config_SaveOldPosition(titlebg)
