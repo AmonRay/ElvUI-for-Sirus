@@ -31,6 +31,27 @@ function Frame:GetBottom()
 	end
 	return self:GetTop() - self.h
 end
+function Frame:GetRight()
+	if self.all then return self.all:GetRight() end
+	for _, p in ipairs(self.points) do
+		if p[1] == 'TOPRIGHT' or p[1] == 'BOTTOMRIGHT' then return p[2]:GetRight() + (p[4] or 0) end
+	end
+	for _, p in ipairs(self.points) do
+		if p[1] == 'TOPLEFT' then
+			local relative = p[2] or self.parent
+			local edge = p[3] == 'TOPRIGHT' and relative:GetRight() or relative:GetLeft()
+			return edge + (p[4] or 0) + self:GetWidth()
+		end
+	end
+	return self.w
+end
+function Frame:GetLeft()
+	if self.all then return self.all:GetLeft() end
+	for _, p in ipairs(self.points) do
+		if p[1] == 'TOPLEFT' then return p[2]:GetLeft() + (p[4] or 0) end
+	end
+	return self:GetRight() - self:GetWidth()
+end
 function Frame:GetHeight() return self:GetTop() - self:GetBottom() end
 function Frame:GetWidth()
 	if self.all then return self.all:GetWidth() end
@@ -134,6 +155,8 @@ clip.dirty = true; settle()
 assert(clip:GetHeight() > 0 and innerFrame:GetHeight() >= 173, 'nested viewport must no longer be inverted')
 assert(clip.scrollbar:IsShown() and select(2, clip.scrollbar:GetMinMaxValues()) > 0)
 assert(skins.calls == 1)
+assert(clip.scrollbar:GetRight() == clip:GetRight() - 3, 'bar must sit inside the content edge')
+assert(clip.scrollbar:GetLeft() >= clip:GetRight() - 14, 'bar must fit the reserved right gutter')
 local layouts = engine.layouts; update(clip); assert(engine.layouts == layouts, 'idle must not relayout')
 -- Emulate AceGUI Frame.OnHeightSet overwriting the cache on a window resize.
 window.obj.content.height = 543
@@ -190,4 +213,4 @@ assert(window.obj.content:GetParent() == window)
 local plain = create('Frame')
 createScroll(plain, true)
 assert(skins.calls == 1)
-print('PASS: -310/-330 geometry; bar/wheel; nested forwarding; shrink; resize; idle; close/pooling; skin-off')
+print('PASS: -310/-330 geometry; inset bar; wheel; forwarding; shrink; resize; idle; close/pooling; skin-off')

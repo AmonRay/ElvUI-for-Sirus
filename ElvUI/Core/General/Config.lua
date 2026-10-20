@@ -1249,8 +1249,8 @@ local function Config_CreateContentScroll(frame, unskinned)
 
 	local bar = CreateFrame('Slider', nil, frame)
 	bar.configContentScroll = clip
-	bar:SetPoint('TOPLEFT', clip, 'TOPRIGHT', 3, -2)
-	bar:SetPoint('BOTTOMLEFT', clip, 'BOTTOMRIGHT', 3, 2)
+	bar:SetPoint('TOPRIGHT', clip, 'TOPRIGHT', -3, -2)
+	bar:SetPoint('BOTTOMRIGHT', clip, 'BOTTOMRIGHT', -3, 2)
 	bar:SetWidth(8)
 	bar:SetOrientation('VERTICAL')
 	bar:SetMinMaxValues(0, 0)
