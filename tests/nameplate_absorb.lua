@@ -129,6 +129,43 @@ env.UnitGetTotalAbsorbs = nil
 np:Update_Absorb(frame)
 assert(not bar.Absorb.shown and not bar.AbsorbText.shown)
 
+local preview = { UnitType = "ENEMY_PLAYER", testUnitType = "ENEMY_PLAYER", testAbsorb = 2500, Health = bar }
+maximum = 10000
+health.absorb.enable, health.absorb.showText = true, false
+local previewCalls = apiCalls
+np:Update_Absorb(preview)
+assert(bar.Absorb.shown and bar.Absorb.width == 50 and not bar.AbsorbText.shown)
+health.absorb.showText = true
+np:Update_Absorb(preview)
+assert(bar.AbsorbText.shown and bar.AbsorbText.value == "+2500")
+assert(apiCalls == previewCalls)
+health.absorb.enable = false
+np:Update_Absorb(preview)
+assert(not bar.Absorb.shown and not bar.AbsorbText.shown)
+health.absorb.enable = true
+preview.testAbsorb = 0
+np:Update_Absorb(preview)
+assert(not bar.Absorb.shown and not bar.AbsorbText.shown)
+preview.testUnitType = nil
+preview.testAbsorb = 2500
+np:Update_Absorb(preview)
+assert(not bar.Absorb.shown and apiCalls == previewCalls)
+
+local testPlate = { ElvUIFrame = {} }
+function testPlate:IsShown() return false end
+function testPlate:Show() self.shown = true end
+local previewNP = {}
+function previewNP:UpdateAllFrame(target) assert(target == testPlate.ElvUIFrame) end
+run(section(read("ElvUI/Core/Modules/Nameplates/Nameplates.lua"), "function NP:TogleTestFrame(unitType)", "function NP:Initialize()"), {
+	NP = previewNP, ElvNP_Test = testPlate, E = { myclass = "MAGE" },
+	UnitHealthMax = function() return 100000 end, random = math.random
+})
+for _, unitType in ipairs({ "ENEMY_PLAYER", "FRIENDLY_PLAYER", "ENEMY_NPC", "FRIENDLY_NPC" }) do
+	previewNP:TogleTestFrame(unitType)
+	assert(testPlate.ElvUIFrame.testAbsorb == 25000)
+	assert(testPlate.ElvUIFrame.testUnitType == unitType)
+end
+
 local group, updates = { args = { healthGroup = { args = {} } } }, 0
 function np:ConfigureAll() updates = updates + 1 end
 run(section(read("ElvUI_Options/Core/Nameplates.lua"), "\tgroup.args.healthGroup.args.absorb = {", '\tif unit == "ENEMY_NPC" then\n\t\tgroup.args.threatText'), {
@@ -158,4 +195,4 @@ assert(not options.args.positionGroup.disabled())
 health.absorb.showText = false
 assert(options.args.positionGroup.disabled())
 assert(updates == 8)
-print("PASS: absorption defaults, visibility, independent fonts and positions, legacy profiles and option callbacks")
+print("PASS: absorption defaults, visibility, independent fonts and positions, preview absorption, legacy profiles and option callbacks")

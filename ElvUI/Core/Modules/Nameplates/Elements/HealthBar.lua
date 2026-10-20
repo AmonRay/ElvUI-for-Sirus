@@ -267,12 +267,17 @@ end
 function NP:Update_Absorb(frame)
 	local healthBar = frame.Health
 	local absorbDB = self.db.units[frame.UnitType].health.absorb
-	if not absorbDB or not absorbDB.enable or not frame.unit or not healthBar:IsShown() then
+	if not absorbDB or not absorbDB.enable or (not frame.unit and not frame.testUnitType) or not healthBar:IsShown() then
 		if healthBar.Absorb then healthBar.Absorb:Hide() end
 		HidePlateLabel(healthBar.AbsorbText)
 		return
 	end
-	local absorb = UnitGetTotalAbsorbs and UnitGetTotalAbsorbs(frame.unit) or 0
+	local absorb
+	if frame.testUnitType then
+		absorb = frame.testAbsorb or 0
+	else
+		absorb = UnitGetTotalAbsorbs and UnitGetTotalAbsorbs(frame.unit) or 0
+	end
 	local _, maxHealth = NP:GetHealth(frame)
 	if absorb <= 0 or maxHealth <= 0 then
 		if healthBar.Absorb then healthBar.Absorb:Hide() end
