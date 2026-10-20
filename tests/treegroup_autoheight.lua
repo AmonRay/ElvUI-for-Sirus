@@ -23,13 +23,15 @@ local function widget()
 		{value = 'b', text = 'B'}, {value = 'c', text = 'C'}, {value = 'd', text = 'D'}
 	}
 	result.frame = {
+		obj = result,
 		GetParent = function() return uiParent end,
+		GetHeight = function() return result.h end,
 		SetScript = function(self, event, fn) self[event] = fn end
 	}
 	result.treeframe = {
 		shown = true,
 		IsShown = function(self) return self.shown end,
-		GetHeight = function() return result.h - 0.001 end -- client rounding
+		GetHeight = function() return result.h - (result.navInset or 0) - 0.001 end -- skin inset + client rounding
 	}
 	function result:SetHeight(height)
 		local changed = self.h ~= height
@@ -63,7 +65,7 @@ assert(#tree.lines == 6 and tree.h >= 6 * 18 + 20)
 assert(parent.layoutCalls == 2 and page.layoutCalls == 2)
 tree.localstatus.groups.a = false
 tree:RefreshTree()
-assert(#tree.lines == 4 and tree.h == 4 * 18 + 21)
+assert(#tree.lines == 4 and math.floor((tree.treeframe:GetHeight() - 20) / 18) >= 4)
 assert(parent.layoutCalls == 3 and page.layoutCalls == 3)
 local calls = tree.layoutCalls
 tree:RefreshTree()
@@ -84,5 +86,54 @@ local locked = widget(); locked.noAutoHeight = true
 locked:BuildLevel(locked.tree, 1); locked:LayoutFinished(nil, 500)
 assert(locked.h == 60)
 locked:RefreshTree(); assert(not locked.layoutCalls)
-tree:OnRelease(); assert(tree.autoHeightLineCount == nil)
-print('PASS: natural tree fits navigation; rounding; expand/collapse; ancestors; reentry; fixed/hidden/locked trees; pool reset')
+-- The real ElvUI skin shifts treeframe TOPLEFT down by 2px. This used to
+-- leave the viewport too short even after the line-count minimum was added.
+for _, rows in ipairs({ 1, 4 }) do
+	local skinned = widget()
+	skinned.tree = {}
+	for row = 1, rows do skinned.tree[row] = { value = tostring(row), text = tostring(row) } end
+	skinned.navInset, skinned.testContentHeight = 2, 0
+	skinned:BuildLevel(skinned.tree, 1)
+	skinned:LayoutFinished(nil, 0)
+	assert(math.floor((skinned.treeframe:GetHeight() - 20) / 18) >= rows, 'skin inset must not make navigation scroll again')
+end
+-- Run the real ElvUI skin wrapper too: it applies TOPLEFT(0, -2) after the
+-- library RefreshTree call, so geometry can change with the same row count.
+local skinFile = assert(io.open('ElvUI/Core/Modules/Skins/Addons/Ace3.lua', 'r'))
+local skinSource = skinFile:read('*a'); skinFile:close()
+local skinFirst = assert(skinSource:find('function S:Ace3_RefreshTree(', 1, true))
+local skinLast = assert(skinSource:find('\nfunction S:Ace3_RegisterAsContainer', skinFirst, true))
+local skinEnv = setmetatable({ S = {}, E = { private = { skins = { ace3Enable = false } } } }, { __index = _G })
+local skinChunk = assert(loadstring(skinSource:sub(skinFirst, skinLast - 1)))
+setfenv(skinChunk, skinEnv); skinChunk()
+for _, rows in ipairs({ 1, 4 }) do
+	local skinned = widget()
+	skinned.tree = {}
+	for row = 1, rows do skinned.tree[row] = {value = tostring(row), text = tostring(row)} end
+	skinned.testContentHeight, skinned.testReentrant = 0, true
+	skinned.border = { ClearAllPoints = function() end, Point = function() end }
+	skinned.treeframe.Point = function(_, point, _, y)
+		assert(point == 'TOPLEFT')
+		local inset = -y
+		if skinned.navInset ~= inset then skinned.navInset = inset; skinned:RefreshTree() end
+	end
+	skinned.old_RefreshTree = skinned.RefreshTree
+	skinned.RefreshTree = skinEnv.S.Ace3_RefreshTree
+	skinned:RefreshTree()
+	for _ = 1, 3 do
+		if skinned.frame.OnUpdate then skinned.frame.OnUpdate(skinned.frame) else skinned:RefreshTree() end
+	end
+	assert(skinned.navInset == 2)
+	assert(math.floor((skinned.treeframe:GetHeight() - 20) / 18) >= rows, 'real skin wrapper must leave all navigation rows visible')
+end
+-- Skin geometry can change after RefreshTree has already seen this line count.
+local changed = widget(); changed.testReentrant, changed.testContentHeight = true, 0
+changed:RefreshTree()
+local before = changed.layoutCalls
+changed.navInset = 6
+changed:RefreshTree()
+assert(changed.layoutCalls == before + 1, 'same row count must relayout when the viewport becomes too short')
+assert(math.floor((changed.treeframe:GetHeight() - 20) / 18) >= #changed.lines)
+assert(not changed.autoHeightUpdating)
+tree:OnRelease(); assert(tree.autoHeightLineCount == nil and tree.autoHeightUpdating == nil)
+print('PASS: navigation height; real ElvUI skin (1/4 rows); late viewport changes; rounding; expand/collapse; reentry; fixed/hidden/locked; pool reset')
