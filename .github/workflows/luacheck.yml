@@ -17,6 +17,9 @@ jobs:
         with:
           luaVersion: "5.1"
 
+      - name: Test aura options layout
+        run: lua tests/aura_options_layout.lua
+
       - name: Set up LuaRocks
         uses: leafo/gh-actions-luarocks@v4
 

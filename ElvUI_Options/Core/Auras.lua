@@ -246,3 +246,22 @@ Auras.args.debuffs.args.filtersGroup = GetFilterGroup('debuffs')
 
 Auras.args.masqueGroup = ACH:Group(L["Masque"], nil, 13, nil, nil, nil, function() return not E.Masque or not E.private.auras.enable end)
 Auras.args.masqueGroup.args.masque = ACH:MultiSelect(L["Masque Support"], L["Allow Masque to handle the skinning of this element."], 10, { buffs = L["Buffs"], debuffs = L["Debuffs"] }, nil, nil, function(_, key) return E.private.auras.masque[key] end, function(_, key, value) E.private.auras.masque[key] = value; E.ShowPopup = true end)
+
+-- Let AceConfig create its normal viewport for leaf pages. Keep controls and
+-- inline groups on a General leaf instead of above a fill-height group selector;
+-- otherwise long aura/filter options can leave that selector a negative height.
+-- This is an options-table change: AceGUI/AceConfig and other sections stay intact.
+local function AddGeneralPage(group)
+	local general = ACH:Group(L["General"], nil, -10)
+	for key, option in pairs(group.args) do
+		if option.type ~= 'group' or option.inline or option.guiInline then
+			general.args[key] = option
+			group.args[key] = nil
+		end
+	end
+	group.args.general = general
+end
+
+AddGeneralPage(Auras)
+AddGeneralPage(Auras.args.buffs)
+AddGeneralPage(Auras.args.debuffs)
