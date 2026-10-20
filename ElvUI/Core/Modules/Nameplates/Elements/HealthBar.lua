@@ -254,7 +254,7 @@ function NP:Configure_Absorb(frame)
 		overlay:Hide()
 		text:Hide()
 	end
-	text:FontTemplate(LSM:Fetch("font", db.text.font), db.text.fontSize, db.text.fontOutline)
+	text:FontTemplate(LSM:Fetch("font", absorbDB.font or db.text.font), absorbDB.fontSize or db.text.fontSize, absorbDB.fontOutline or db.text.fontOutline)
 	text:ClearAllPoints()
 	text:SetPoint("LEFT", healthBar, "LEFT", 4, 0)
 	overlay:ClearAllPoints()
